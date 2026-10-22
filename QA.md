@@ -19,3 +19,7 @@ Chưa thực hiện gửi email, gọi điện, thanh toán hay xuất bản. Li
 Bản cập nhật dùng nền trắng và taupe, ảnh manicure thật, chữ Libre Caslon Display và DM Sans. Tài nguyên ảnh và font được phục vụ tại máy; các ảnh sử dụng có nguồn trong `ASSET-SOURCES.md`.
 
 Đã kiểm tra riêng bằng cấu hình iPhone 13: vuốt cảm ứng ngang trong danh mục hoạt động, menu mobile mở/đóng đúng và nút xem tất cả hiển thị đủ 8 sản phẩm. Không xuất hiện cuộn ngang toàn trang.
+
+## Cập nhật màu sắc — 22/10/2026
+
+Đổi nhận diện sang đỏ rượu vang `#651B32`, mận đậm `#391020` và kem ấm `#F4E9DC`. Đã xem lại toàn trang trên desktop 1440 px và mobile 390/320 px: không tràn ngang, không ảnh lỗi, không lỗi JavaScript. Các mảng tối dùng chữ kem sáng và viền focus riêng để dễ đọc, dễ điều hướng. Bố cục và chức năng sản phẩm được giữ nguyên.
