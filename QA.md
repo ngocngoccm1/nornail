@@ -23,3 +23,18 @@ Bản cập nhật dùng nền trắng và taupe, ảnh manicure thật, chữ L
 ## Cập nhật màu sắc — 22/10/2026
 
 Đổi nhận diện sang đỏ rượu vang `#651B32`, mận đậm `#391020` và kem ấm `#F4E9DC`. Đã xem lại toàn trang trên desktop 1440 px và mobile 390/320 px: không tràn ngang, không ảnh lỗi, không lỗi JavaScript. Các mảng tối dùng chữ kem sáng và viền focus riêng để dễ đọc, dễ điều hướng. Bố cục và chức năng sản phẩm được giữ nguyên.
+
+## Ngôn ngữ và tìm kiếm — 23/10/2026
+
+Đã kiểm tra trên Chromium ở 1440, 768, 390 và 320 px:
+
+- Chuyển Na Uy → Anh → Na Uy; dịch trang, danh mục, sản phẩm, thông báo, nhãn hỗ trợ tiếp cận, metadata và email hỏi hàng.
+- Nhớ lựa chọn sau khi tải lại và khi quay lại URL không có tham số; hỗ trợ `?lang=en` và `?lang=nb`.
+- Vẫn đổi ngôn ngữ được khi localStorage bị trình duyệt chặn.
+- Tìm qua ô đầu trang bằng Enter/nút Search; tìm trực tiếp và dùng phím mũi tên để chọn kết quả trong cửa sổ tìm kiếm.
+- Tìm cả “nail drill” / “negledrill”, “acetone” / “aceton”, thương hiệu và nhiều từ khóa như “buffer orange”, “novicide 500”.
+- Tình huống không có kết quả, dữ liệu giống HTML được coi là văn bản và không được thực thi.
+- Giữ bộ lọc và trạng thái xem toàn bộ sản phẩm khi đổi ngôn ngữ.
+- Không ảnh lỗi, lỗi JavaScript hoặc tràn ngang trong cả hai ngôn ngữ.
+
+Đã xem ảnh chụp desktop và mobile của bản tiếng Anh. Trên mobile, ô nhập dùng font 16 px khi gõ để tránh trình duyệt phóng to khi focus. Chưa gửi email hay xuất bản trong lần cập nhật này.

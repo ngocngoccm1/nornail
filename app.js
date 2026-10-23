@@ -20,12 +20,39 @@ const categories = {
   hygiene: { number: '06', title: 'Sterilisering', intro: 'Spør oss om utstyr til sterilisering og produkter til salonghygiene. Her kan du se rens og desinfeksjon i utvalget. Desinfeksjon og sterilisering er ulike prosesser; bruk produktene etter produsentens anvisninger.', ids: ['novicide', 'novicide-small', 'alcohol', 'acetone'], subject: 'Sterilisering og salonghygiene' }
 };
 
+let currentLanguage = readLanguage();
+let currentFilter = 'all';
+
+function readLanguage() {
+  const requested = new URLSearchParams(window.location.search).get('lang');
+  if (requested === 'nb' || requested === 'en') return requested;
+  try {
+    const saved = localStorage.getItem('nornails.language');
+    if (saved === 'nb' || saved === 'en') return saved;
+  } catch { /* The site also works when browser storage is unavailable. */ }
+  return 'nb';
+}
+
+function t(key, values = {}) {
+  const message = nornailsTranslations.messages[currentLanguage][key] ?? nornailsTranslations.messages.nb[key] ?? key;
+  return message.replace(/\{(\w+)\}/g, (_, name) => String(values[name] ?? ''));
+}
+
+function localProduct(product, language = currentLanguage) {
+  return { ...product, ...nornailsTranslations.products[language]?.[product.id] };
+}
+
+function localCategory(id) {
+  return { ...categories[id], ...nornailsTranslations.categories[currentLanguage]?.[id] };
+}
+
 const arrow = '<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg>';
 const grid = document.querySelector('#product-grid');
 const productDialog = document.querySelector('#product-dialog');
 const categoryDialog = document.querySelector('#category-dialog');
 const searchDialog = document.querySelector('#search-dialog');
 const searchInput = document.querySelector('#product-search');
+const headerSearchInput = document.querySelector('#header-product-search');
 const menuToggle = document.querySelector('.menu-toggle');
 const mobileMenu = document.querySelector('#mobile-menu');
 let returnFocus = null;
@@ -38,23 +65,75 @@ function mailLink(subject, body) {
   return 'mailto:Nornails2026@gmail.com?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
 }
 
-function renderProducts(filter = 'all') {
-  const visible = products.filter(product => filter === 'all' || product.group === filter);
+function renderProducts(filter = currentFilter) {
+  currentFilter = filter;
+  const visible = products.filter(product => filter === 'all' || product.group === filter).map(product => localProduct(product));
   grid.innerHTML = visible.map(product => `
     <article class="product-card">
-      <button class="product-card-button" data-product="${product.id}" aria-label="Se ${product.brand} ${product.name}, ${product.unit}">
+      <button class="product-card-button" data-product="${product.id}" aria-label="${escapeHtml(t('products.view', { name: product.brand + ' ' + product.name, unit: product.unit }))}">
         <div class="product-image"><img src="assets/images/${product.id}.webp" alt="${product.brand} ${product.name}" width="700" height="700" loading="lazy"><span class="product-quickview" aria-hidden="true"><svg class="icon"><use href="#i-search"/></svg></span></div>
-        <div class="product-info"><h3>${product.brand === 'NOVICIDE' ? '' : product.brand + ' '}${product.name}</h3><p class="product-description">${product.unit}</p><p class="product-price">Pris på forespørsel</p></div>
+        <div class="product-info"><h3>${product.brand === 'NOVICIDE' ? '' : product.brand + ' '}${product.name}</h3><p class="product-description">${product.unit}</p><p class="product-price">${t('products.price')}</p></div>
       </button>
     </article>`).join('');
   grid.scrollLeft = 0;
   requestAnimationFrame(updateRailButtons);
-  document.querySelector('#product-count').textContent = visible.length + ' produkter';
+  document.querySelector('#product-count').textContent = t(visible.length === 1 ? 'products.countOne' : 'products.count', { count: visible.length });
+}
+
+function renderViewAll() {
+  const expanded = grid.classList.contains('expanded');
+  const button = document.querySelector('#view-all-products');
+  button.setAttribute('aria-expanded', String(expanded));
+  button.innerHTML = `${t(expanded ? 'products.less' : 'products.all')} <span aria-hidden="true">${expanded ? '↑' : '→'}</span>`;
+}
+
+function applyLanguage(language, { persist = true, updateUrl = true } = {}) {
+  if (!['nb', 'en'].includes(language)) return;
+  currentLanguage = language;
+  document.documentElement.lang = language;
+  document.querySelectorAll('[data-i18n]').forEach(element => { element.textContent = t(element.dataset.i18n); });
+  // Only trusted, locally maintained heading copy can contain line-break markup.
+  document.querySelectorAll('[data-i18n-html]').forEach(element => { element.innerHTML = t(element.dataset.i18nHtml); });
+  ['aria-label', 'placeholder', 'alt', 'title'].forEach(attribute => {
+    document.querySelectorAll(`[data-i18n-${attribute}]`).forEach(element => {
+      element.setAttribute(attribute, t(element.getAttribute(`data-i18n-${attribute}`)));
+    });
+  });
+  document.querySelectorAll('[data-language]').forEach(button => {
+    button.setAttribute('aria-pressed', String(button.dataset.language === language));
+  });
+  const meta = nornailsTranslations.meta[language];
+  document.title = meta.title;
+  document.querySelector('meta[name="description"]').content = meta.description;
+  document.querySelector('meta[property="og:title"]').content = meta.ogTitle;
+  document.querySelector('meta[property="og:description"]').content = meta.ogDescription;
+  document.querySelector('meta[property="og:locale"]').content = meta.locale;
+  const businessData = document.querySelector('#business-data');
+  const business = JSON.parse(businessData.textContent);
+  business.description = meta.businessDescription;
+  businessData.textContent = JSON.stringify(business);
+  menuToggle.setAttribute('aria-label', t(menuToggle.getAttribute('aria-expanded') === 'true' ? 'a11y.menu.close' : 'a11y.menu.open'));
+  renderProducts();
+  renderViewAll();
+  renderSearch();
+  if (productDialog.open) renderProductDetails(productDialog.dataset.productId);
+  if (categoryDialog.open) renderCategoryDetails(categoryDialog.dataset.categoryId);
+  if (persist) {
+    try { localStorage.setItem('nornails.language', language); } catch { /* Optional preference storage. */ }
+  }
+  if (updateUrl) {
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('lang', language);
+      window.history.replaceState(window.history.state, '', url);
+    } catch { /* Local file previews may disallow history updates. */ }
+  }
+  requestAnimationFrame(updateRailButtons);
 }
 
 function setMenu(open) {
   menuToggle.setAttribute('aria-expanded', String(open));
-  menuToggle.setAttribute('aria-label', open ? 'Lukk meny' : 'Åpne meny');
+  menuToggle.setAttribute('aria-label', t(open ? 'a11y.menu.close' : 'a11y.menu.open'));
   mobileMenu.classList.toggle('open', open);
   mobileMenu.inert = !open;
   document.body.classList.toggle('menu-open', open);
@@ -68,40 +147,73 @@ function openDialog(dialog) {
   document.body.classList.add('modal-open');
 }
 
+function renderProductDetails(id) {
+  const source = products.find(item => item.id === id);
+  if (!source) return;
+  const product = localProduct(source);
+  const values = { name: product.brand + ' ' + product.name, unit: product.unit };
+  const inquiry = mailLink(t('mail.productSubject', values), t('mail.productBody', values));
+  document.querySelector('#product-dialog-content').innerHTML = `<div class="product-dialog-layout"><div class="dialog-product-image"><img src="assets/images/${product.id}.webp" alt="${product.brand} ${product.name}" width="700" height="700"></div><div class="dialog-product-info"><span class="eyebrow">${product.brand} / ${product.tag}</span><h2 id="dialog-title">${product.name}</h2><span class="product-unit">${product.unit}</span><p>${product.description}</p><dl class="product-specs">${product.specs.map(([label, value]) => `<div><dt>${label}</dt><dd>${value}</dd></div>`).join('')}</dl><a class="button button-dark" href="${escapeHtml(inquiry)}">${t('product.ask')} ${arrow}</a><p class="dialog-disclaimer">${t('product.disclaimer')}${product.safety ? ' ' + t('product.safety') : ''}</p></div></div>`;
+}
+
 function openProduct(id) {
-  const product = products.find(item => item.id === id);
-  if (!product) return;
-  const inquiry = mailLink('Produktforespørsel: ' + product.brand + ' ' + product.name + ' · ' + product.unit, `Hei Nornails!\n\nJeg ønsker pris og tilgjengelighet på:\n${product.brand} ${product.name} — ${product.unit}\n\nØnsket antall: \n\nNavn / salong: \nTelefon: \n\nTakk!`);
-  document.querySelector('#product-dialog-content').innerHTML = `<div class="product-dialog-layout"><div class="dialog-product-image"><img src="assets/images/${product.id}.webp" alt="${product.brand} ${product.name}" width="700" height="700"></div><div class="dialog-product-info"><span class="eyebrow">${product.brand} / ${product.tag}</span><h2 id="dialog-title">${product.name}</h2><span class="product-unit">${product.unit}</span><p>${product.description}</p><dl class="product-specs">${product.specs.map(([label, value]) => `<div><dt>${label}</dt><dd>${value}</dd></div>`).join('')}</dl><a class="button button-dark" href="${escapeHtml(inquiry)}">Spør om produktet ${arrow}</a><p class="dialog-disclaimer">Åpner en e-post til Nornails. Vi bekrefter pris og tilgjengelighet.${product.safety ? ' Les alltid etiketten og produktinformasjonen før bruk.' : ''}</p></div></div>`;
+  if (!products.some(item => item.id === id)) return;
+  productDialog.dataset.productId = id;
+  renderProductDetails(id);
   openDialog(productDialog);
 }
 
+function renderCategoryDetails(id) {
+  if (!categories[id]) return;
+  const category = localCategory(id);
+  const related = products.filter(product => category.ids.includes(product.id)).map(product => localProduct(product));
+  const inquiry = mailLink(t('mail.categorySubject', { category: category.subject }), t('mail.categoryBody', { category: category.subject }));
+  document.querySelector('#category-dialog-content').innerHTML = `<span class="eyebrow">${t('category.label')} / ${category.number}</span><h2 id="category-dialog-title">${category.title}</h2><p class="category-intro">${category.intro}</p>${related.length ? `<div class="category-product-list">${related.map(product => `<button class="category-product-button" data-product="${product.id}"><img src="assets/images/${product.id}.webp" alt="" width="70" height="70"><span>${product.brand} ${product.name}<br><small>${product.unit}</small></span>${arrow}</button>`).join('')}</div>` : ''}<a class="button button-dark" href="${escapeHtml(inquiry)}">${t('category.ask', { category: category.title.toLocaleLowerCase(currentLanguage) })} ${arrow}</a><p class="category-note">${t('category.note')}<br>${t('category.call')} <a href="tel:+4746125141">+47 4612 5141</a>.</p>`;
+}
+
 function openCategory(id) {
-  const category = categories[id];
-  if (!category) return;
-  const related = products.filter(product => category.ids.includes(product.id));
-  const inquiry = mailLink('Forespørsel: ' + category.subject, `Hei Nornails!\n\nJeg er interessert i ${category.subject.toLowerCase()}.\n\nJeg ser etter: \nØnsket antall: \n\nNavn / salong: \nTelefon: \n\nTakk!`);
-  document.querySelector('#category-dialog-content').innerHTML = `<span class="eyebrow">SORTIMENT / ${category.number}</span><h2 id="category-dialog-title">${category.title}</h2><p class="category-intro">${category.intro}</p>${related.length ? `<div class="category-product-list">${related.map(product => `<button class="category-product-button" data-product="${product.id}"><img src="assets/images/${product.id}.webp" alt="" width="70" height="70"><span>${product.brand} ${product.name}<br><small>${product.unit}</small></span>${arrow}</button>`).join('')}</div>` : ''}<a class="button button-dark" href="${escapeHtml(inquiry)}">Spør oss om ${category.title.toLowerCase()} ${arrow}</a><p class="category-note">Kontakt oss for oppdatert utvalg, priser og tilgjengelighet.<br>Du kan også ringe <a href="tel:+4746125141">+47 4612 5141</a>.</p>`;
+  if (!categories[id]) return;
+  categoryDialog.dataset.categoryId = id;
+  renderCategoryDetails(id);
   openDialog(categoryDialog);
 }
 
 function normalize(text) {
-  return text.toLocaleLowerCase('nb').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replaceAll('ø', 'o').replaceAll('æ', 'ae');
+  return text.toLocaleLowerCase('nb').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replaceAll('ø', 'o').replaceAll('æ', 'ae').replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
+const searchIndex = new Map(products.map(product => {
+  const content = ['nb', 'en'].flatMap(language => {
+    const item = localProduct(product, language);
+    return [item.name, item.brand, item.tag, item.unit, item.short, item.description];
+  });
+  const aliases = { urawa: 'nail drill electric drill neglefres neglefraser utstyr equipment', alcohol: 'alcohol alkohol cleaner rens', acetone: 'remover fjerner', w1: 'monomer', w2: 'monomer', buffer: 'buffing nail file neglefil manicure', novicide: 'disinfectant desinfeksjon hygiene 2l', 'novicide-small': 'disinfectant desinfeksjon hygiene' };
+  return [product.id, normalize([...content, aliases[product.id] ?? ''].join(' '))];
+}));
+
 function renderSearch() {
-  const query = normalize(searchInput.value.trim());
-  const found = products.filter(product => normalize([product.name, product.brand, product.tag, product.unit, product.short, product.description].join(' ')).includes(query));
-  document.querySelector('#search-count').textContent = query ? `${found.length} ${found.length === 1 ? 'treff' : 'treff'} for «${searchInput.value.trim()}»` : 'Utforsk våre 8 produkter';
+  const rawQuery = searchInput.value.trim();
+  const tokens = normalize(rawQuery).split(/\s+/).filter(Boolean);
+  const found = products.filter(product => tokens.every(token => searchIndex.get(product.id).includes(token))).map(product => localProduct(product));
+  document.querySelector('#search-count').textContent = rawQuery ? t(found.length === 1 ? 'search.resultOne' : 'search.results', { count: found.length, query: rawQuery }) : t('search.explore', { count: products.length });
   const list = document.querySelector('#search-results');
   if (!found.length) {
-    list.innerHTML = '<p class="search-empty">Ingen produkter funnet. Prøv et annet søk, eller <a href="mailto:Nornails2026@gmail.com">spør oss om produktet du ser etter</a>.</p>';
+    list.innerHTML = `<p class="search-empty">${t('search.empty')} <a href="mailto:Nornails2026@gmail.com">${t('search.ask')}</a>.</p>`;
     return;
   }
   list.innerHTML = found.map(product => `<button class="search-result" data-product="${product.id}"><img src="assets/images/${product.id}.webp" alt="" width="57" height="63"><span>${product.brand} ${product.name}<small>${product.unit} · ${product.short}</small></span>${arrow}</button>`).join('');
 }
 
+function openSearch(query = '') {
+  searchInput.value = query;
+  renderSearch();
+  openDialog(searchDialog);
+  searchInput.focus();
+}
+
 document.addEventListener('click', event => {
+  const languageButton = event.target.closest('[data-language]');
+  if (languageButton) applyLanguage(languageButton.dataset.language);
   const productButton = event.target.closest('[data-product]');
   if (productButton) openProduct(productButton.dataset.product);
   const categoryButton = event.target.closest('[data-category]');
@@ -117,13 +229,21 @@ document.addEventListener('click', event => {
   }
 });
 
-document.querySelector('.search-open').addEventListener('click', () => {
-  searchInput.value = '';
-  renderSearch();
-  openDialog(searchDialog);
-  searchInput.focus();
+document.querySelector('.search-open').addEventListener('click', () => openSearch(headerSearchInput.value.trim()));
+document.querySelector('#header-search-form').addEventListener('submit', event => {
+  event.preventDefault();
+  openSearch(headerSearchInput.value.trim());
 });
-searchInput.addEventListener('input', renderSearch);
+searchInput.addEventListener('input', () => {
+  headerSearchInput.value = searchInput.value;
+  renderSearch();
+});
+searchInput.addEventListener('keydown', event => {
+  if (event.key === 'ArrowDown') {
+    const first = document.querySelector('.search-result');
+    if (first) { event.preventDefault(); first.focus(); }
+  }
+});
 menuToggle.addEventListener('click', () => setMenu(menuToggle.getAttribute('aria-expanded') !== 'true'));
 mobileMenu.querySelectorAll('a').forEach(link => link.addEventListener('click', () => setMenu(false)));
 document.addEventListener('keydown', event => {
@@ -188,10 +308,9 @@ document.querySelectorAll('[data-slide]').forEach(button => button.addEventListe
   rail.scrollBy({ left: rail.clientWidth * Number(button.dataset.direction), behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
 }));
 
-document.querySelector('#view-all-products').addEventListener('click', event => {
-  const expanded = grid.classList.toggle('expanded');
-  event.currentTarget.setAttribute('aria-expanded', String(expanded));
-  event.currentTarget.innerHTML = expanded ? 'Vis færre produkter <span aria-hidden="true">↑</span>' : 'Vis alle produkter <span aria-hidden="true">→</span>';
+document.querySelector('#view-all-products').addEventListener('click', () => {
+  grid.classList.toggle('expanded');
+  renderViewAll();
   grid.scrollLeft = 0;
   updateRailButtons();
 });
@@ -199,7 +318,7 @@ window.addEventListener('resize', updateRailButtons, { passive: true });
 
 const header = document.querySelector('.site-header');
 window.addEventListener('scroll', () => header.classList.toggle('scrolled', window.scrollY > 40), { passive: true });
-renderProducts();
+applyLanguage(currentLanguage, { persist: false, updateUrl: false });
 document.querySelector('#year').textContent = new Date().getFullYear();
 
 if ('IntersectionObserver' in window && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
