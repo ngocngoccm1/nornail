@@ -62,7 +62,7 @@ function escapeHtml(value) {
 }
 
 function mailLink(subject, body) {
-  return 'mailto:Nornails2026@gmail.com?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+  return 'mailto:Nornails26@gmail.com?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
 }
 
 function renderProducts(filter = currentFilter) {
@@ -198,7 +198,7 @@ function renderSearch() {
   document.querySelector('#search-count').textContent = rawQuery ? t(found.length === 1 ? 'search.resultOne' : 'search.results', { count: found.length, query: rawQuery }) : t('search.explore', { count: products.length });
   const list = document.querySelector('#search-results');
   if (!found.length) {
-    list.innerHTML = `<p class="search-empty">${t('search.empty')} <a href="mailto:Nornails2026@gmail.com">${t('search.ask')}</a>.</p>`;
+    list.innerHTML = `<p class="search-empty">${t('search.empty')} <a href="mailto:Nornails26@gmail.com">${t('search.ask')}</a>.</p>`;
     return;
   }
   list.innerHTML = found.map(product => `<button class="search-result" data-product="${product.id}"><img src="assets/images/${product.id}.webp" alt="" width="57" height="63"><span>${product.brand} ${product.name}<small>${product.unit} · ${product.short}</small></span>${arrow}</button>`).join('');
